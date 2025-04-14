@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Meeting Assistant</title>
+    <style>
+        /* --- Reset & Base Styles (Angelehnt an Screenshot/Modern) --- */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #1d1d1f;
+            --text-color-light: #6e6e73;
+            --primary-color: #0071e3; /* Apple Blue */
+            --secondary-color: #f5f5f7; /* Light Gray */
+            --border-color: #d2d2d7;
+            --accent-color: #0071e3;
+            --accent-color-hover: #0077ed;
+            --accent-text-color: #ffffff;
+            --error-color: #d8000c;
+            --error-background: #ffdddd;
+            --card-bg: #ffffff;
+            --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            --input-bg: #f5f5f7;
+            --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            --border-radius: 8px;
+            --border-radius-large: 12px;
+            --container-padding: 24px;
+            --header-height: 60px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #000000;
+                --text-color: #f5f5f7;
+                --text-color-light: #a1a1a6;
+                --primary-color: #0a84ff;
+                --secondary-color: #1c1c1e;
+                --border-color: #38383a;
+                --accent-color: #0a84ff;
+                --accent-color-hover: #3f9dff;
+                --accent-text-color: #ffffff;
+                --error-color: #ffbaba;
+                --error-background: #5a1a1a;
+                --card-bg: #1c1c1e;
+                --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                --input-bg: #2c2c2e;
+            }
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+        button { cursor: pointer; background: none; border: none; }
+        input, select { border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 10px 12px; background-color: var(--input-bg); }
+        input:focus, select:focus { border-color: var(--primary-color); outline: none; }
+        a { color: var(--primary-color); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .hidden { display: none !important; }
+
+        /* --- Layout & Header --- */
+        .main-container { display: flex; flex-direction: column; flex-grow: 1; }
+        .view { display: flex; flex-direction: column; flex-grow: 1; padding: var(--container-padding); padding-top: calc(var(--header-height) + var(--container-padding)); }
+        .app-header { position: fixed; top: 0; left: 0; right: 0; height: var(--header-height); background-color: var(--bg-color); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; padding: 0 var(--container-padding); z-index: 100; }
+        .header-content { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1200px; margin: 0 auto; }
+        .header-title { font-size: 1.25em; font-weight: 600; }
+        .header-title .meeting-name { color: var(--text-color-light); margin-left: 5px; font-weight: normal; }
+        .header-actions button, .header-actions a { background-color: var(--secondary-color); color: var(--text-color); padding: 8px 15px; border-radius: var(--border-radius); font-size: 0.9em; font-weight: 500; margin-left: 10px; transition: background-color 0.2s ease; }
+        .header-actions button:hover, .header-actions a:hover { background-color: darken(var(--secondary-color), 5%); }
+        .header-actions button.primary { background-color: var(--accent-color); color: var(--accent-text-color); }
+        .header-actions button.primary:hover { background-color: var(--accent-color-hover); }
+        .header-actions button.icon-button { background: none; padding: 5px; font-size: 1.2em; line-height: 1; color: var(--text-color-light); }
+        .header-actions button.icon-button:hover { color: var(--primary-color); }
+
+        /* --- Token Setup View --- */
+        #tokenSetupView { padding: 40px var(--container-padding); text-align: center; }
+        #tokenSetupView h2 { margin-bottom: 15px; font-size: 1.5em; font-weight: 600; }
+        #tokenSetupView p { margin-bottom: 25px; color: var(--text-color-light); max-width: 600px; margin-left: auto; margin-right: auto; }
+        #tokenSetupView input[type="password"] { width: 100%; max-width: 450px; margin-bottom: 20px; text-align: center; }
+        #tokenSetupView button { background-color: var(--accent-color); color: var(--accent-text-color); padding: 12px 30px; border-radius: var(--border-radius); font-size: 1em; font-weight: 500; transition: background-color 0.2s ease; }
+        #tokenSetupView button:hover { background-color: var(--accent-color-hover); }
+
+        /* --- Project List View --- */
+        #projectListView { max-width: 1000px; margin: 0 auto; width: 100%; }
+        .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .project-card { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius-large); padding: 20px; box-shadow: var(--card-shadow); cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; display: flex; flex-direction: column; justify-content: space-between; min-height: 150px; }
+        .project-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); }
+        .project-card h3 { font-size: 1.15em; font-weight: 600; margin-bottom: 8px; word-break: break-word; }
+        .project-card .date { font-size: 0.85em; color: var(--text-color-light); margin-bottom: 15px; }
+        .project-card .actions { margin-top: auto; display: flex; justify-content: flex-end; }
+        .project-card .actions button { background: none; border: none; color: var(--text-color-light); font-size: 1.2em; padding: 5px; margin-left: 8px; cursor: pointer; }
+        .project-card .actions button:hover { color: var(--error-color); }
+        .no-projects { text-align: center; color: var(--text-color-light); padding: 40px 0; }
+
+        /* --- Meeting Detail View --- */
+        #meetingDetailView { gap: 20px; }
+        .meeting-controls-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; padding: 15px; background-color: var(--secondary-color); border-radius: var(--border-radius); border: 1px solid var(--border-color); }
+        .meeting-controls-bar #statusDisplay { font-size: 0.9em; color: var(--text-color-light); text-align: right; flex-grow: 1; margin-left: 20px; }
+        #recordButton { background-color: var(--accent-color); color: var(--accent-text-color); padding: 10px 20px; border-radius: var(--border-radius); font-size: 1em; font-weight: 500; display: flex; align-items: center; gap: 8px; transition: background-color 0.2s ease; min-width: 170px; justify-content: center; }
+        #recordButton:hover { background-color: var(--accent-color-hover); }
+        #recordButton.recording { background-color: #DC3545; }
+        #recordButton.recording:hover { background-color: #c82333; }
+        #recordButton .icon { font-size: 1em; }
+
+        .main-meeting-content { display: flex; flex-direction: column; flex-grow: 1; border: 1px solid var(--border-color); border-radius: var(--border-radius-large); overflow: hidden; background-color: var(--bg-color); }
+        .transcript-section, .chat-section { flex-basis: 50%; display: flex; flex-direction: column; overflow: hidden; }
+        .transcript-section { border-bottom: 1px solid var(--border-color); }
+        .transcript-output, .chat-messages { flex-grow: 1; overflow-y: auto; padding: 20px; scroll-behavior: smooth; }
+        .transcript-output { background-color: var(--bg-color); }
+        .chat-messages { display: flex; flex-direction: column; gap: 12px; background-color: var(--secondary-color); }
+
+        .transcript-entry { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px dashed var(--border-color); }
+        .transcript-entry:last-child { border-bottom: none; margin-bottom: 0; }
+        .transcript-entry .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+        .transcript-entry .speaker { font-weight: 600; font-size: 0.9em; color: var(--text-color); margin-right: 10px; }
+        .transcript-entry .timestamp { font-size: 0.8em; color: var(--text-color-light); }
+        .transcript-entry .text { font-size: 1em; line-height: 1.6; color: var(--text-color); white-space: pre-wrap;}
+
+        .chat-input-area { display: flex; align-items: center; padding: 15px; border-top: 1px solid var(--border-color); background-color: var(--bg-color); gap: 10px; flex-shrink: 0; }
+        .chat-input-area input[type="text"] { flex-grow: 1; background-color: var(--input-bg); padding: 12px 18px; border-radius: 20px; border: 1px solid var(--border-color); }
+        .chat-input-area button { width: 40px; height: 40px; border-radius: 50%; background-color: var(--accent-color); color: var(--accent-text-color); font-size: 1.5em; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background-color 0.2s ease; }
+        .chat-input-area button:disabled { background-color: var(--text-color-light); cursor: not-allowed; opacity: 0.6; }
+        .chat-input-area button:hover:not(:disabled) { background-color: var(--accent-color-hover); }
+
+        .message-bubble { padding: 12px 18px; border-radius: 18px; max-width: 80%; word-wrap: break-word; line-height: 1.5; }
+        .message-bubble.user { background-color: var(--accent-color); color: var(--accent-text-color); align-self: flex-end; border-bottom-right-radius: 6px; }
+        .message-bubble.ai { background-color: var(--secondary-color); color: var(--text-color); align-self: flex-start; border: 1px solid var(--border-color); border-bottom-left-radius: 6px; }
+        .message-bubble.ai strong { color: var(--text-color); font-weight: 600; font-size: 0.9em; }
+        .message-bubble.system { color: var(--text-color-light); align-self: center; font-style: normal; font-size: 0.85em; text-align: center; width: 100%; padding: 8px 0; }
+        .message-bubble.loading { background-color: var(--secondary-color); border: 1px solid var(--border-color); }
+        .message-bubble.error { background-color: var(--error-background); color: var(--error-color); border: 1px solid var(--error-color); }
+
+        .summary-section { border: 1px solid var(--border-color); border-radius: var(--border-radius-large); background-color: var(--card-bg); box-shadow: var(--card-shadow); flex-shrink: 0; }
+        .summary-section details { border-radius: inherit; }
+        .summary-section summary { padding: 15px 20px; font-size: 1.1em; font-weight: 600; color: var(--text-color); cursor: pointer; list-style: none; position: relative; border-bottom: 1px solid var(--border-color); border-radius: inherit; }
+        .summary-section summary::-webkit-details-marker { display: none; }
+        .summary-section summary::after { content: '▶'; position: absolute; right: 20px; top: 50%; transform: translateY(-50%) rotate(0deg); font-size: 0.7em; color: var(--text-color-light); transition: transform 0.2s ease; }
+        .summary-section details[open] summary::after { transform: translateY(-50%) rotate(90deg); }
+        .summary-section details[open] summary { border-bottom: 1px solid var(--border-color); border-bottom-left-radius: 0; border-bottom-right-radius: 0;}
+        .summary-content { padding: 20px; font-size: 1em; line-height: 1.6; max-height: 250px; overflow-y: auto; white-space: pre-wrap; color: var(--text-color); }
+        .summary-content.loading { color: var(--text-color-light); font-style: italic; }
+
+        /* --- Modal Styling --- */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background-color: var(--card-bg); padding: 30px; border: 1px solid var(--border-color); border-radius: var(--border-radius-large); width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); position: relative; }
+        .modal-close { position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 1.8em; color: var(--text-color-light); cursor: pointer; line-height: 1; padding: 5px; }
+        .modal h2 { font-size: 1.4em; margin-bottom: 20px; text-align: center; }
+        .modal label { display: block; margin-bottom: 8px; font-weight: 500; }
+        .modal input[type="text"] { width: 100%; margin-bottom: 20px; }
+        .modal-actions { text-align: right; margin-top: 10px; }
+        .modal-actions button { padding: 10px 20px; border-radius: var(--border-radius); font-weight: 500; margin-left: 10px; }
+        .modal-actions button.primary { background-color: var(--accent-color); color: var(--accent-text-color); }
+        .modal-actions button.secondary { background-color: var(--secondary-color); color: var(--text-color); border: 1px solid var(--border-color); }
+
+        /* --- Responsive --- */
+        @media (max-width: 768px) {
+            :root { --container-padding: 15px; --header-height: 55px; }
+            .view { padding-top: calc(var(--header-height) + var(--container-padding)); }
+            .app-header { padding: 0 var(--container-padding); }
+            .header-title { font-size: 1.1em; }
+            .header-actions button, .header-actions a { padding: 6px 12px; font-size: 0.85em; }
+            .project-grid { grid-template-columns: 1fr; gap: 15px; }
+            .meeting-controls-bar { flex-direction: column; align-items: stretch; }
+            .meeting-controls-bar #statusDisplay { text-align: center; margin-top: 10px; margin-left: 0; }
+            .main-meeting-content { flex-grow: 1; min-height: 450px; } /* Ensure enough height */
+            .transcript-section, .chat-section { flex-basis: auto; min-height: 200px; } /* Allow natural height */
+            .chat-input-area input[type="text"] { padding: 10px 15px; }
+            .chat-input-area button { width: 36px; height: 36px; font-size: 1.3em; }
+            .modal-content { padding: 20px; width: 95%; }
+            .modal h2 { font-size: 1.2em; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+
+        <!-- Global Header (Dynamically updated) -->
+        <header class="app-header">
+            <div class="header-content">
+                <div id="headerTitle" class="header-title">AI Meeting Assistant</div>
+                <div id="headerActions" class="header-actions"></div>
+            </div>
+        </header>
+
+        <!-- Views Container -->
+        <div id="tokenSetupView" class="view hidden">
+            <!-- Token Input Content -->
+            <h2>Hugging Face API Token benötigt</h2>
+            <p>Gib deinen Hugging Face API Token ein, um die KI-Funktionen zu nutzen. <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">Hier</a> erhältst du einen kostenlosen Token.</p>
+            <input type="password" id="hfTokenInput" placeholder="Dein Hugging Face API Token (hf_...)">
+            <button id="saveTokenBtn">Token speichern & Starten</button>
+        </div>
+
+        <div id="projectListView" class="view hidden">
+            <!-- Project Grid Content -->
+            <div id="meetingListGrid" class="project-grid"></div>
+            <div class="no-projects hidden">Noch keine Projekte vorhanden. Erstelle dein erstes Meeting!</div>
+        </div>
+
+        <div id="meetingDetailView" class="view hidden">
+            <!-- Meeting Controls -->
+            <div class="meeting-controls-bar">
+                <button id="recordButton" class="stopped" type="button">
+                    <span class="icon">▶️</span> Start Recording
+                </button>
+                <span id="statusDisplay">Bereit.</span>
+            </div>
+
+            <!-- Main Content (Transcript/Chat) -->
+            <div class="main-meeting-content">
+                <div class="transcript-section">
+                    <div class="transcript-output" id="transcriptOutput"></div>
+                </div>
+                <div class="chat-section">
+                    <div class="chat-messages" id="chatOutput"></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="chatInput" placeholder="Frage zum Meeting stellen...">
+                        <button id="sendChatBtn" type="button" disabled title="Nachricht senden">⬆️</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Section -->
+            <div class="summary-section hidden" id="summarySection">
+                <details id="summaryDetailsElement">
+                    <summary>Meeting Zusammenfassung</summary>
+                    <div class="summary-content" id="summaryContent"></div>
+                </details>
+            </div>
+        </div>
+
+        <!-- Add Meeting Modal -->
+        <div id="addMeetingModal" class="modal">
+            <div class="modal-content">
+                <button type="button" class="modal-close" aria-label="Schließen">×</button>
+                <h2>Neues Meeting erstellen</h2>
+                <label for="newMeetingNameInputModal">Meeting Name:</label>
+                <input type="text" id="newMeetingNameInputModal" placeholder="z.B. Wöchentliches Sync Q3">
+                <div class="modal-actions">
+                    <button type="button" class="secondary modal-cancel">Abbrechen</button>
+                    <button type="button" id="confirmAddMeetingBtnModal" class="primary">Erstellen</button>
+                </div>
+            </div>
+        </div>
+
+    </div> <!-- End .main-container -->
+
+    <script>
+        // --- Constants and Globals ---
+        const HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.2";
+        const pauseThreshold = 2500;
+        let isRecording = false;
+        let recognition;
+        let transcriptHistory = [];
+        let chatHistory = [];
+        let speakerCounter = 1;
+        let currentSpeaker = `Sprecher ${speakerCounter}`;
+        let lastSpeechEndTime = null;
+        let hfToken = '';
+        let meetings = {};
+        let currentMeetingId = null;
+        let nextMessageId = 0;
+        let currentView = null;
+
+        // --- DOM Elements Cache ---
+        let elements = {}; // Initialize empty object
+
+        function cacheElements() {
+            // Select all relevant elements after DOM is loaded
+            elements = {
+                mainContainer: document.querySelector('.main-container'),
+                header: document.querySelector('.app-header'),
+                headerTitle: document.getElementById('headerTitle'),
+                headerActions: document.getElementById('headerActions'),
+                // Views
+                tokenSetupView: document.getElementById('tokenSetupView'),
+                projectListView: document.getElementById('projectListView'),
+                meetingDetailView: document.getElementById('meetingDetailView'),
+                // Token View Elements
+                hfTokenInput: document.getElementById('hfTokenInput'),
+                saveTokenBtn: document.getElementById('saveTokenBtn'),
+                // Project List View Elements
+                meetingListGrid: document.getElementById('meetingListGrid'),
+                noProjectsMessage: document.querySelector('#projectListView .no-projects'),
+                // Meeting Detail View Elements
+                recordButton: document.getElementById('recordButton'),
+                recordButtonIcon: document.querySelector('#recordButton .icon'),
+                recordButtonTextNode: document.querySelector('#recordButton').childNodes[1], // Index 1 should be the text now
+                statusDisplay: document.getElementById('statusDisplay'),
+                transcriptOutput: document.getElementById('transcriptOutput'),
+                chatOutput: document.getElementById('chatOutput'),
+                chatInput: document.getElementById('chatInput'),
+                sendChatBtn: document.getElementById('sendChatBtn'),
+                summarySection: document.getElementById('summarySection'),
+                summaryContent: document.getElementById('summaryContent'),
+                summaryDetailsElement: document.getElementById('summaryDetailsElement'),
+                // Modal Elements
+                addMeetingModal: document.getElementById('addMeetingModal'),
+                newMeetingNameInputModal: document.getElementById('newMeetingNameInputModal'),
+                confirmAddMeetingBtnModal: document.getElementById('confirmAddMeetingBtnModal'),
+                 modalCloseButtons: document.querySelectorAll('.modal-close'),
+                 modalCancelButtons: document.querySelectorAll('.modal-cancel'),
+            };
+            console.log("Elements cached:", elements);
+             // Basic check for essential elements
+             if (!elements.tokenSetupView || !elements.projectListView || !elements.meetingDetailView) {
+                console.error("FATAL: Core view elements not found!");
+             }
+             if (!elements.confirmAddMeetingBtnModal) {
+                  console.error("FATAL: Confirm Add Meeting Button in Modal not found!");
+             }
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM Content Loaded. Caching elements...");
+            cacheElements(); // Cache elements first
+
+            hfToken = localStorage.getItem('hfApiToken') || '';
+            loadMeetingsFromLocalStorage();
+            setupSpeechRecognition(); // Attempt to setup recognition
+
+            console.log("Initializing view...");
+            if (hfToken) {
+                showView('projects');
+            } else {
+                showView('token');
+            }
+
+            // --- Event Listeners ---
+            console.log("Adding event listeners...");
+
+            // Token Setup
+            if (elements.saveTokenBtn) {
+                elements.saveTokenBtn.addEventListener('click', handleSaveToken);
+            } else { console.error("Save Token Button not found"); }
+
+            // Meeting Controls
+            if (elements.recordButton) {
+                elements.recordButton.addEventListener('click', toggleRecording);
+            } else { console.error("Record Button not found"); }
+
+            if (elements.sendChatBtn) {
+                elements.sendChatBtn.addEventListener('click', handleSendChat);
+            } else { console.error("Send Chat Button not found"); }
+
+            if (elements.chatInput) {
+                elements.chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendChat(); } });
+                elements.chatInput.addEventListener('input', updateSendButtonState);
+            } else { console.error("Chat Input not found"); }
+
+            // Modal Buttons (CRUCIAL)
+            if (elements.confirmAddMeetingBtnModal) {
+                elements.confirmAddMeetingBtnModal.addEventListener('click', handleConfirmAddMeeting);
+            } else { console.error("Confirm Add Meeting Button (Modal) not found - cannot add listener"); }
+
+             // Generic Modal Close/Cancel Buttons
+             elements.modalCloseButtons.forEach(btn => {
+                 const modal = btn.closest('.modal');
+                 if (modal) btn.addEventListener('click', () => closeModal(modal.id));
+             });
+             elements.modalCancelButtons.forEach(btn => {
+                 const modal = btn.closest('.modal');
+                 if (modal) btn.addEventListener('click', () => closeModal(modal.id));
+             });
+
+             // Modal background click close
+             if (elements.addMeetingModal) {
+                elements.addMeetingModal.addEventListener('click', (e) => { if (e.target === elements.addMeetingModal) closeModal('addMeetingModal'); });
+             }
+
+            console.log("Event listeners added.");
+            updateSendButtonState(); // Initial state for send button
+
+        }); // End DOMContentLoaded
+
+        // --- View Management ---
+        function showView(viewName) {
+            console.log("Showing view:", viewName);
+            // Hide all views first
+            if (elements.tokenSetupView) elements.tokenSetupView.classList.add('hidden');
+            if (elements.projectListView) elements.projectListView.classList.add('hidden');
+            if (elements.meetingDetailView) elements.meetingDetailView.classList.add('hidden');
+            if (elements.header) elements.header.classList.remove('hidden'); // Show header by default
+
+            currentView = viewName; // Set current view state *before* updating header
+
+            // Show the target view and update header
+            switch (viewName) {
+                case 'token':
+                    if (elements.tokenSetupView) elements.tokenSetupView.classList.remove('hidden');
+                    if (elements.header) elements.header.classList.add('hidden'); // Hide header on token setup
+                    if (elements.hfTokenInput) elements.hfTokenInput.focus();
+                    break;
+                case 'projects':
+                    if (elements.projectListView) elements.projectListView.classList.remove('hidden');
+                    updateHeader();
+                    populateMeetingList(); // Refresh project list
+                    break;
+                case 'meeting':
+                    if (elements.meetingDetailView) elements.meetingDetailView.classList.remove('hidden');
+                    if (currentMeetingId && meetings[currentMeetingId]) {
+                        updateHeader();
+                        loadMeetingData(currentMeetingId);
+                        isRecording = false; // Ensure recording is off when entering
+                        updateRecordButtonUI();
+                        checkAiFeaturesAvailability();
+                    } else {
+                        console.warn("No valid meeting selected, redirecting to projects.");
+                        showView('projects'); // Redirect if no meeting ID
+                    }
+                    break;
+                default:
+                    console.error("Unknown view requested:", viewName);
+                    showView('projects'); // Fallback
+            }
+        }
+
+        function updateHeader() {
+             if (!elements.headerTitle || !elements.headerActions) {
+                 console.error("Header elements not found for update.");
+                 return;
+             }
+            elements.headerTitle.innerHTML = '';
+            elements.headerActions.innerHTML = '';
+
+            const logoText = document.createTextNode('AI Meeting Assistant');
+            elements.headerTitle.appendChild(logoText);
+
+            if (currentView === 'projects') {
+                const newMeetingBtn = createButton('➕ Neues Meeting', () => openModal('addMeetingModal'), ['primary']);
+                elements.headerActions.appendChild(newMeetingBtn);
+                addSettingsButton(); // Add settings gear
+            } else if (currentView === 'meeting' && currentMeetingId && meetings[currentMeetingId]) {
+                 const meetingNameSpan = document.createElement('span');
+                 meetingNameSpan.className = 'meeting-name';
+                 meetingNameSpan.textContent = ` / ${meetings[currentMeetingId].title}`;
+                 elements.headerTitle.appendChild(meetingNameSpan);
+
+                 const backBtn = createButton('← Projekte', () => {
+                     if (isRecording) {
+                         if (!confirm("Aufnahme läuft. Stoppen & zurück?")) return;
+                         stopRecording(false); // Stop without summary
+                     }
+                     showView('projects');
+                 });
+                 elements.headerActions.appendChild(backBtn);
+                 addSettingsButton(); // Add settings gear
+            } else if (currentView !== 'token') {
+                // Only show settings if not on token view and state is unclear
+                addSettingsButton();
+            }
+        }
+
+        function addSettingsButton() {
+            // Use an inline function to call showView, avoids undefined function error
+            const settingsBtn = createButton('⚙️', () => showView('token'), ['icon-button']);
+            settingsBtn.title = "API Token ändern";
+            if (elements.headerActions) elements.headerActions.appendChild(settingsBtn);
+        }
+
+        // --- Token Handling ---
+        function handleSaveToken() {
+            if (!elements.hfTokenInput) return;
+            const potentialToken = elements.hfTokenInput.value.trim();
+            if (potentialToken && potentialToken.startsWith('hf_')) {
+                hfToken = potentialToken;
+                localStorage.setItem('hfApiToken', hfToken);
+                showView('projects'); // Go to projects view
+                updateStatus("API Token gespeichert.", false);
+            } else {
+                alert("Ungültiger Hugging Face API Token.");
+                elements.hfTokenInput.focus();
+            }
+        }
+
+        // --- Modal Handling ---
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                console.log("Opening modal:", modalId);
+                modal.classList.add('active');
+                // Specific logic for add meeting modal
+                if (modalId === 'addMeetingModal' && elements.newMeetingNameInputModal) {
+                    elements.newMeetingNameInputModal.value = ''; // Clear previous input
+                    setTimeout(() => elements.newMeetingNameInputModal.focus(), 50); // Focus after transition
+                }
+            } else { console.error("Modal not found:", modalId); }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                console.log("Closing modal:", modalId);
+                modal.classList.remove('active');
+            } else { console.error("Cannot close modal, not found:", modalId); }
+        }
+
+        // --- Meeting (Project) Management ---
+        function populateMeetingList() {
+             if (!elements.meetingListGrid || !elements.noProjectsMessage) return;
+             elements.meetingListGrid.innerHTML = ''; // Clear grid
+             const meetingKeys = Object.keys(meetings);
+             console.log(`Populating list with ${meetingKeys.length} meetings.`);
+
+             if (meetingKeys.length === 0) {
+                 elements.noProjectsMessage.classList.remove('hidden');
+                 elements.meetingListGrid.classList.add('hidden'); // Hide grid container too
+                 return;
+             }
+             elements.noProjectsMessage.classList.add('hidden');
+             elements.meetingListGrid.classList.remove('hidden'); // Show grid container
+
+             meetingKeys.sort((a, b) => parseInt(b.split('_')[1]) - parseInt(a.split('_')[1])); // Newest first
+
+             meetingKeys.forEach(id => {
+                 if (!meetings[id]) return;
+                 const meeting = meetings[id];
+                 const card = document.createElement('div');
+                 card.className = 'project-card';
+                 card.dataset.meetingId = id;
+
+                 const title = document.createElement('h3');
+                 title.textContent = meeting.title || 'Unbenannt';
+                 const date = document.createElement('p');
+                 date.className = 'date';
+                 const ts = parseInt(id.split('_')[1]);
+                 date.textContent = !isNaN(ts) ? `Erstellt: ${new Date(ts).toLocaleDateString()} ${new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : 'Erstellt: ?';
+                 const actions = document.createElement('div');
+                 actions.className = 'actions';
+                 const delBtn = createButton('🗑️', (e) => { e.stopPropagation(); handleDeleteMeeting(id); });
+                 delBtn.title = "Löschen";
+                 actions.appendChild(delBtn);
+
+                 card.appendChild(title);
+                 card.appendChild(date);
+                 card.appendChild(actions);
+                 card.addEventListener('click', () => { currentMeetingId = id; showView('meeting'); });
+                 elements.meetingListGrid.appendChild(card);
+             });
+             console.log("Finished populating list.");
+         }
+
+        function handleConfirmAddMeeting() {
+            console.log("Confirm Add Meeting button clicked!"); // Log click
+             if (!elements.newMeetingNameInputModal) {
+                 console.error("Name input in modal not found!");
+                 return;
+             }
+             const newName = elements.newMeetingNameInputModal.value.trim();
+             console.log("Name entered:", newName);
+
+             if (newName) {
+                 const newId = `meeting_${Date.now()}`;
+                 console.log("Creating meeting:", newId, newName);
+                 meetings[newId] = {
+                     title: newName,
+                     transcriptHistory: [],
+                     chatHistory: [{ id: nextMessageId++, sender: 'system', text: `Meeting "${newName}" erstellt.` }],
+                     summary: null
+                 };
+                 saveMeetingsToLocalStorage(); // Save the updated meetings object
+                 closeModal('addMeetingModal');
+                 populateMeetingList(); // Refresh the project list UI
+                 updateStatus(`Meeting "${newName}" erstellt.`, false);
+             } else {
+                 alert("Bitte einen Namen für das Meeting eingeben.");
+                 elements.newMeetingNameInputModal.focus();
+             }
+         }
+
+        function handleDeleteMeeting(meetingId) {
+            if (!meetings[meetingId]) return;
+            const title = meetings[meetingId].title;
+            if (confirm(`Meeting "${title}" wirklich löschen?`)) {
+                delete meetings[meetingId];
+                saveMeetingsToLocalStorage();
+                populateMeetingList(); // Refresh the list
+                updateStatus(`Meeting "${title}" gelöscht.`, false);
+                if (currentMeetingId === meetingId) {
+                    currentMeetingId = null; // Reset if the active one was deleted
+                }
+            }
+        }
+
+        function loadMeetingData(meetingId) {
+            if (!meetings[meetingId]) { showView('projects'); return; }
+            const meeting = meetings[meetingId];
+            transcriptHistory = meeting.transcriptHistory || [];
+            chatHistory = (meeting.chatHistory || []).map((msg, i) => ({ ...msg, id: msg.id ?? nextMessageId + i }));
+            nextMessageId = Math.max(0, ...chatHistory.map(m => m.id || 0)) + 1;
+            if (chatHistory.length === 0) chatHistory.push({ id: nextMessageId++, sender: 'system', text: `Meeting "${meeting.title}" geladen.` });
+            updateTranscriptUI();
+            updateChatUI();
+            displaySummary(meeting.summary);
+            // No need to call updateHeader here, showView already does
+            // Reset UI states for detail view
+            if (elements.chatInput) elements.chatInput.value = '';
+            if (elements.statusDisplay) elements.statusDisplay.textContent = "Bereit.";
+        }
+
+        // --- LocalStorage ---
+        function saveMeetingsToLocalStorage() { try { localStorage.setItem('meetingsData', JSON.stringify(meetings)); console.log("Saved meetings to localStorage"); } catch (e) { console.error("Failed to save meetings:", e); } }
+        function loadMeetingsFromLocalStorage() { const data = localStorage.getItem('meetingsData'); try { meetings = data ? JSON.parse(data) : {}; if (typeof meetings !== 'object' || meetings === null) meetings = {}; console.log("Loaded meetings from localStorage:", Object.keys(meetings).length); } catch (e) { meetings = {}; console.error("Failed to load meetings:", e); } }
+        function saveCurrentMeetingData() { if (!currentMeetingId || !meetings[currentMeetingId]) return; const cleanChat = chatHistory.filter(m => !m.isLoading); meetings[currentMeetingId].transcriptHistory = transcriptHistory; meetings[currentMeetingId].chatHistory = cleanChat; saveMeetingsToLocalStorage(); }
+        function saveMeetingSummary(summary) { if (!currentMeetingId || !meetings[currentMeetingId]) return; meetings[currentMeetingId].summary = summary; saveMeetingsToLocalStorage(); }
+
+        // --- Speech Recognition & Recording ---
+        function setupSpeechRecognition() { window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition; if (!window.SpeechRecognition) { console.error("Web Speech API not supported"); return; } try { recognition = new SpeechRecognition(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'de-DE'; recognition.onresult = handleRecognitionResult; recognition.onerror = handleRecognitionError; recognition.onend = handleRecognitionEnd; console.log("Speech Recognition setup."); } catch (e) { console.error("Speech Recognition init failed:", e); recognition = null; } }
+        function updateRecordButtonUI() { if (!elements.recordButton) return; const rec = isRecording; elements.recordButtonIcon.textContent = rec ? '⏹️' : '▶️'; if (elements.recordButtonTextNode) elements.recordButtonTextNode.textContent = rec ? ' Stop Recording' : ' Start Recording'; if(rec) elements.recordButton.classList.add('recording'); else elements.recordButton.classList.remove('recording'); }
+        function toggleRecording() { if (!currentMeetingId) { updateStatus("Kein Meeting ausgewählt.", true); return; } if (!navigator.mediaDevices) { updateStatus("Media devices not supported.", true); return; } if (!recognition) { updateStatus("Spracherkennung nicht bereit.", true); return; } if (isRecording) stopRecording(); else startRecording(); }
+        function startRecording() { if (!recognition || !currentMeetingId) return; speakerCounter = transcriptHistory.reduce((max, seg) => Math.max(max, parseInt(seg.speaker.split(' ')[1] || '0')), 0) + 1; currentSpeaker = `Sprecher ${speakerCounter}`; lastSpeechEndTime = null; addChatMessage('system', `Aufnahme gestartet: ${new Date().toLocaleTimeString()}`); checkAiFeaturesAvailability(); navigator.mediaDevices.getUserMedia({ audio: true }).then(() => { try { console.log("Starting recognition..."); recognition.start(); isRecording = true; updateRecordButtonUI(); updateStatus('Hört zu...', false); } catch (e) { console.error("Error starting recognition:", e); isRecording = false; updateRecordButtonUI(); updateStatus("Fehler Start.", true); } }).catch(err => { updateStatus("Mikrofonzugriff?", true); }); }
+        function stopRecording(generateSum = true) { if (recognition && isRecording) { try { isRecording = false; recognition.stop(); console.log("Recognition stopped."); } catch (e) { console.error("Stop error:", e); } } updateRecordButtonUI(); checkAiFeaturesAvailability(); const time = new Date().toLocaleTimeString(); if (generateSum && currentMeetingId && hfToken && transcriptHistory.length > 0) { addChatMessage('system', `Aufnahme beendet: ${time}. Generiere Zusammenfassung...`); generateAndDisplaySummary(); } else { addChatMessage('system', `Aufnahme beendet: ${time}.`); updateStatus("Aufnahme beendet.", false); } }
+        function handleRecognitionResult(event) { let interim = '', final = ''; for (let i = event.resultIndex; i < event.results.length; ++i) { if (event.results[i].isFinal) final += event.results[i][0].transcript; else interim += event.results[i][0].transcript; } if(elements.statusDisplay && isRecording) updateStatus(`Hört zu... ${interim}`, false); if (final.trim()) { const now = Date.now(); if (lastSpeechEndTime && (now - lastSpeechEndTime > pauseThreshold) && transcriptHistory.length > 0 && transcriptHistory[transcriptHistory.length - 1].text.length > 0) { speakerCounter++; currentSpeaker = `Sprecher ${speakerCounter}`; } const newSeg = { timestamp: new Date().toISOString(), speaker: currentSpeaker, text: final.trim() }; transcriptHistory.push(newSeg); lastSpeechEndTime = now; updateTranscriptUI(); saveCurrentMeetingData(); } }
+        function handleRecognitionError(event) { console.error('Speech error:', event.error, event.message); let msg = `Spracherkennungsfehler: ${event.error}`; if(event.error==='not-allowed'){ msg="Mikrofonzugriff verweigert."; if(isRecording) stopRecording(false); } else if(event.error==='no-speech'){ msg="Keine Sprache erkannt."; } else if(event.error==='aborted' && !isRecording) { return; } updateStatus(msg, true); }
+        function handleRecognitionEnd() { console.log('Speech ended.'); if (isRecording) { console.log('Attempting restart...'); try { setTimeout(() => { if(isRecording && recognition) recognition.start(); }, 300); } catch (e) { console.error("Restart error:", e); stopRecording(false); } } }
+
+        // --- Chat & AI ---
+        function handleSendChat() { if (!elements.chatInput) return; const text = elements.chatInput.value.trim(); if (text === '' || isRecording || !currentMeetingId || !hfToken) return; addChatMessage('user', text); elements.chatInput.value = ''; updateSendButtonState(); getAIResponse(text); }
+        function addChatMessage(sender, text, isLoading = false, isError = false) { const message = { id: nextMessageId++, sender, text, isLoading, isError }; chatHistory.push(message); updateChatUI(); if (!isLoading && !isError && sender !== 'system') saveCurrentMeetingData(); return message; }
+        function updateChatMessage(messageToUpdate, newText, isLoading = false, isError = false) { const index = chatHistory.findIndex(msg => msg.id === messageToUpdate.id); if (index !== -1) { chatHistory[index].text = newText; chatHistory[index].isLoading = isLoading; chatHistory[index].isError = isError; updateChatUI(); if (!isLoading && !isError) saveCurrentMeetingData(); } }
+        async function getAIResponse(userQuery) { /* ... Core logic ... */
+             const fullTranscriptText = transcriptHistory.map(segment => `${segment.speaker}: ${segment.text}`).join('\n');
+             if (userQuery.toLowerCase().includes("zusammenfassung") || userQuery.toLowerCase().includes("summary")) { addChatMessage('system', "Generiere Zusammenfassung..."); generateAndDisplaySummary(true); return; }
+             // Add other local checks if needed
+              if (fullTranscriptText.trim().length < 10 && userQuery.length < 15) { addChatMessage('ai', "Das Transkript ist sehr kurz. Bitte stelle eine spezifischere Frage oder starte die Aufnahme."); return;}
+
+             const loadingMsg = addChatMessage('ai', '...', true);
+             const maxTranscriptLength = 10000;
+             const truncatedTranscript = fullTranscriptText.length > maxTranscriptLength ? `...\n${fullTranscriptText.slice(-maxTranscriptLength)}` : fullTranscriptText;
+             const prompt = `Du bist ein hilfreicher KI-Assistent, der ein Meeting-Transkript analysiert. Antworte prägnant und basiere deine Antwort NUR auf dem folgenden Transkript.\n\nTranskript:\n---\n${truncatedTranscript}\n---\n\nFrage: ${userQuery}\n\nAntwort:`;
+
+             try {
+                 const response = await fetch(`https://api-inference.huggingface.co/models/${HF_MODEL}`, { headers: { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json" }, method: "POST", body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 250, return_full_text: false } }) });
+                 if (!response.ok) { const errData = await response.json(); let errMsg = `HF API Error (${response.status}): ${errData.error || 'Unknown'}`; if (errData.estimated_time) errMsg += ` Model loading? Try again in ${Math.ceil(errData.estimated_time)}s.`; throw new Error(errMsg); }
+                 const result = await response.json();
+                 let answer = "Keine passende Antwort gefunden.";
+                 if (result && Array.isArray(result) && result[0] && result[0].generated_text) { answer = result[0].generated_text.trim().replace(/^Antwort:/i, "").trim(); }
+                 updateChatMessage(loadingMsg, answer);
+             } catch (error) { console.error('AI Error:', error); updateChatMessage(loadingMsg, `Fehler: ${error.message}`, false, true); }
+        }
+        async function generateAndDisplaySummary(forceApi = false) { /* ... Core logic ... */
+             const fullTranscriptText = transcriptHistory.map(segment => segment.text).join('\n');
+            if (fullTranscriptText.trim().length < 50) { displaySummary("Transkript zu kurz."); updateStatus("Transkript zu kurz.", false); return; }
+            if (!hfToken) { displaySummary("API Token fehlt."); updateStatus("API Token fehlt.", true); return; }
+            updateStatus("Generiere Zusammenfassung...", false);
+            summaryContent.textContent = "Generiere Zusammenfassung..."; summaryContent.classList.add("loading"); elements.summarySection.classList.remove('hidden'); if(elements.summaryDetailsElement) elements.summaryDetailsElement.open = true;
+            const maxTranscriptLengthSum = 15000;
+            const truncatedTranscriptSum = fullTranscriptText.length > maxTranscriptLengthSum ? `...\n${fullTranscriptText.slice(-maxTranscriptLengthSum)}` : fullTranscriptText;
+            const prompt = `Erstelle eine prägnante Zusammenfassung (Stichpunkte oder wenige Sätze) des folgenden Meeting-Transkripts. Fokus: Wichtige Themen, Entscheidungen, Action Items.\n\nTranskript:\n---\n${truncatedTranscriptSum}\n---\n\nZusammenfassung:`;
+            try {
+                 const response = await fetch(`https://api-inference.huggingface.co/models/${HF_MODEL}`, { headers: { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json" }, method: "POST", body: JSON.stringify({ inputs: prompt, parameters: { max_new_tokens: 300, return_full_text: false } }) });
+                 if (!response.ok) { const errData = await response.json(); let errMsg = `HF API Error (${response.status}): ${errData.error || 'Unknown'}`; if (errData.estimated_time) errMsg += ` Model loading? Try again in ${Math.ceil(errData.estimated_time)}s.`; throw new Error(errMsg); }
+                 const result = await response.json();
+                 if (result && Array.isArray(result) && result[0] && result[0].generated_text) { const summary = result[0].generated_text.trim(); displaySummary(summary); saveMeetingSummary(summary); updateStatus("Zusammenfassung generiert.", false); if (forceApi) addChatMessage('ai', `Zusammenfassung:\n${summary}`);
+                 } else { throw new Error("Keine Zusammenfassung erhalten."); }
+            } catch (error) { console.error('Summary Error:', error); const errorText = `Fehler: ${error.message}`; displaySummary(errorText); updateStatus(errorText, true); saveMeetingSummary(errorText); if (forceApi) addChatMessage('ai', errorText, false, true);
+            } finally { if(summaryContent) summaryContent.classList.remove("loading"); }
+        }
+        function displaySummary(summaryText) { if (!elements.summaryContent || !elements.summarySection) return; if (summaryText) { summaryContent.textContent = summaryText; elements.summarySection.classList.remove('hidden'); } else { elements.summarySection.classList.add('hidden'); } }
+
+        // --- UI Updates ---
+        function updateTranscriptUI() { if (!elements.transcriptOutput) return; if (!currentMeetingId && currentView === 'meeting') { elements.transcriptOutput.innerHTML = '<div class="system-message">Wähle ein Meeting.</div>'; return; } if (transcriptHistory.length === 0 && currentMeetingId) { elements.transcriptOutput.innerHTML = '<div class="system-message">Noch kein Transkript.</div>'; return; } if (!currentMeetingId) { elements.transcriptOutput.innerHTML = ''; return; } elements.transcriptOutput.innerHTML = ''; transcriptHistory.forEach(seg => { const e = document.createElement('div'); e.className = 'transcript-entry'; const h = document.createElement('div'); h.className = 'header'; const s = document.createElement('span'); s.className = 'speaker'; s.textContent = seg.speaker; const t = document.createElement('span'); t.className = 'timestamp'; t.textContent = new Date(seg.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); h.appendChild(s); h.appendChild(t); const txt = document.createElement('div'); txt.className = 'text'; txt.textContent = seg.text; e.appendChild(h); e.appendChild(txt); elements.transcriptOutput.appendChild(e); }); elements.transcriptOutput.scrollTop = elements.transcriptOutput.scrollHeight; }
+        function updateChatUI() { if (!elements.chatOutput) return; elements.chatOutput.innerHTML = ''; /* Add initial message logic if needed */ chatHistory.forEach(msg => { const b = document.createElement('div'); b.className = `message-bubble ${msg.sender}`; if (msg.isLoading) { b.classList.add('loading'); b.innerHTML = `<strong>AI:</strong> <span class="dot-flashing"></span>`; } else if (msg.isError) { b.classList.add('error'); b.textContent = `🤖 Fehler: ${msg.text}`; } else { if (msg.sender === 'ai') { const n = document.createElement('strong'); n.textContent="AI:"; b.appendChild(n); } b.appendChild(document.createTextNode(msg.text)); } elements.chatOutput.appendChild(b); }); elements.chatOutput.scrollTop = elements.chatOutput.scrollHeight; }
+        function updateStatus(text, isError = false) { if(elements.statusDisplay) { elements.statusDisplay.textContent = text; elements.statusDisplay.style.color = isError ? 'var(--error-color)' : 'var(--text-color-light)'; } console.log(`Status: ${text}`); }
+        function updateSendButtonState() { if(elements.sendChatBtn && elements.chatInput) elements.sendChatBtn.disabled = elements.chatInput.value.trim() === '' || !currentMeetingId || isRecording || !hfToken; }
+        function checkAiFeaturesAvailability() { updateSendButtonState(); if(elements.chatInput) { elements.chatInput.disabled = !hfToken || !currentMeetingId || isRecording; elements.chatInput.placeholder = hfToken && currentMeetingId ? "Frage zum Meeting..." : (hfToken ? "Wähle/erstelle Meeting..." : "API Token fehlt..."); } if (elements.recordButton) { elements.recordButton.disabled = !currentMeetingId; } }
+
+        // --- Helpers ---
+        function createButton(textOrIcon, onClick, classes = []) { const btn = document.createElement('button'); btn.innerHTML = textOrIcon; btn.type = 'button'; btn.classList.add('action-button', ...classes); btn.addEventListener('click', onClick); return btn; }
+
+    </script>
+
+</body>
+</html>
